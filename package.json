@@ -1,0 +1,36 @@
+{
+  "name": "pi-subagent",
+  "version": "1.0.0",
+  "description": "Subagent tool for pi: delegate tasks to specialized agents with isolated context windows (single, parallel, chain modes) with streaming output, plan-mode propagation and parent-model inheritance",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "subagent",
+    "agent",
+    "delegation",
+    "orchestration"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/adamcjm/pi-subagent.git"
+  },
+  "homepage": "https://github.com/adamcjm/pi-subagent",
+  "bugs": {
+    "url": "https://github.com/adamcjm/pi-subagent/issues"
+  },
+  "files": [
+    "extensions"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/subagent"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-tui": "*"
+  }
+}
