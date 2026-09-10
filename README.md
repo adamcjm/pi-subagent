@@ -24,13 +24,13 @@ The main agent calls `subagent`, a child `pi` process does the work, and only th
 ## Install
 
 ```bash
-pi install npm:pi-subagent
+pi install npm:@adamcjm/pi-subagent
 ```
 
 Or for the current run only:
 
 ```bash
-pi -e npm:pi-subagent
+pi -e npm:@adamcjm/pi-subagent
 ```
 
 > **Security:** extensions execute arbitrary code with full system access. Review the source before installing.

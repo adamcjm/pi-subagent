@@ -1,5 +1,5 @@
 {
-  "name": "pi-subagent",
+  "name": "@adamcjm/pi-subagent",
   "version": "1.0.0",
   "description": "Subagent tool for pi: delegate tasks to specialized agents with isolated context windows (single, parallel, chain modes) with streaming output, plan-mode propagation and parent-model inheritance",
   "keywords": [

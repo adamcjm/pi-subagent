@@ -24,13 +24,13 @@
 ## 安装
 
 ```bash
-pi install npm:pi-subagent
+pi install npm:@adamcjm/pi-subagent
 ```
 
 仅当前运行使用：
 
 ```bash
-pi -e npm:pi-subagent
+pi -e npm:@adamcjm/pi-subagent
 ```
 
 > **安全提示：** 扩展以完整系统权限执行任意代码，安装前请审阅源码。
