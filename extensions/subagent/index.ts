@@ -16,7 +16,7 @@ import { spawn } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
-import type { AgentToolResult } from "@earendil-works/pi-agent-core";
+import type { AgentToolResult, ThinkingLevel } from "@earendil-works/pi-agent-core";
 import type { Message } from "@earendil-works/pi-ai";
 import { StringEnum } from "@earendil-works/pi-ai";
 import {
@@ -265,8 +265,15 @@ function getPiInvocation(args: string[]): { command: string; args: string[] } {
 
 type OnUpdateCallback = (partial: AgentToolResult<SubagentDetails>) => void;
 
+interface DispatchDefaults {
+	model?: string;
+	thinkingLevel?: ThinkingLevel;
+}
+
 async function runSingleAgent(
 	defaultCwd: string,
+	dispatchDefaults: DispatchDefaults,
+	planModeActive: boolean,
 	agents: AgentConfig[],
 	agentName: string,
 	task: string,
@@ -275,8 +282,6 @@ async function runSingleAgent(
 	signal: AbortSignal | undefined,
 	onUpdate: OnUpdateCallback | undefined,
 	makeDetails: (results: SingleResult[]) => SubagentDetails,
-	planModeActive: boolean,
-	parentModelRef: string | undefined,
 ): Promise<SingleResult> {
 	const agent = agents.find((a) => a.name === agentName);
 
@@ -296,8 +301,12 @@ async function runSingleAgent(
 
 	const args: string[] = ["--mode", "json", "-p", "--no-session"];
 	if (planModeActive) args.push("--plan"); // propagate read-only plan mode to the child process
-	if (agent.model) args.push("--model", agent.model);
-	else if (parentModelRef) args.push("--model", parentModelRef);
+	const inheritsDispatchConfig = !agent.model;
+	const model = agent.model ?? dispatchDefaults.model;
+	if (model) args.push("--model", model);
+	if (inheritsDispatchConfig && dispatchDefaults.thinkingLevel) {
+		args.push("--thinking", dispatchDefaults.thinkingLevel);
+	}
 	if (agent.tools && agent.tools.length > 0) args.push("--tools", agent.tools.join(","));
 
 	let tmpPromptDir: string | null = null;
@@ -311,7 +320,7 @@ async function runSingleAgent(
 		messages: [],
 		stderr: "",
 		usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, cost: 0, contextTokens: 0, turns: 0 },
-		model: agent.model,
+		model,
 		step,
 	};
 
@@ -498,10 +507,10 @@ export default function (pi: ExtensionAPI) {
 		async execute(_toolCallId, params, signal, onUpdate, ctx) {
 			const agentScope: AgentScope = params.agentScope ?? "user";
 			const planModeActive = isPlanModeActive(ctx);
-			// pi 0.8x 起当前模型通过 ctx.model 访问；更旧版本使用 ctx.getModel()
-			const legacyCtx = ctx as ExtensionContext & { getModel?: () => typeof ctx.model };
-			const currentModel = legacyCtx.getModel ? legacyCtx.getModel() : ctx.model;
-			const parentModelRef = currentModel ? `${currentModel.provider}/${currentModel.id}` : undefined;
+			const dispatchDefaults: DispatchDefaults = {
+				model: ctx.model ? `${ctx.model.provider}/${ctx.model.id}` : undefined,
+				thinkingLevel: ctx.thinkingLevel,
+			};
 			const discovery = discoverAgents(ctx.cwd, agentScope);
 			const agents = discovery.agents;
 			const confirmProjectAgents = params.confirmProjectAgents ?? true;
@@ -533,7 +542,12 @@ export default function (pi: ExtensionAPI) {
 				};
 			}
 
-			if ((agentScope === "project" || agentScope === "both") && confirmProjectAgents && ctx.hasUI) {
+			if (
+				(agentScope === "project" || agentScope === "both") &&
+				confirmProjectAgents &&
+				ctx.hasUI &&
+				!ctx.isProjectTrusted()
+			) {
 				const requestedAgentNames = new Set<string>();
 				if (params.chain) for (const step of params.chain) requestedAgentNames.add(step.agent);
 				if (params.tasks) for (const t of params.tasks) requestedAgentNames.add(t.agent);
@@ -583,6 +597,8 @@ export default function (pi: ExtensionAPI) {
 
 					const result = await runSingleAgent(
 						ctx.cwd,
+						dispatchDefaults,
+						planModeActive,
 						agents,
 						step.agent,
 						taskWithContext,
@@ -591,8 +607,6 @@ export default function (pi: ExtensionAPI) {
 						signal,
 						chainUpdate,
 						makeDetails("chain"),
-						planModeActive,
-						parentModelRef,
 					);
 					results.push(result);
 
@@ -657,6 +671,8 @@ export default function (pi: ExtensionAPI) {
 				const results = await mapWithConcurrencyLimit(params.tasks, MAX_CONCURRENCY, async (t, index) => {
 					const result = await runSingleAgent(
 						ctx.cwd,
+						dispatchDefaults,
+						planModeActive,
 						agents,
 						t.agent,
 						t.task,
@@ -671,8 +687,6 @@ export default function (pi: ExtensionAPI) {
 							}
 						},
 						makeDetails("parallel"),
-						planModeActive,
-						parentModelRef,
 					);
 					allResults[index] = result;
 					emitParallelUpdate();
@@ -701,6 +715,8 @@ export default function (pi: ExtensionAPI) {
 			if (params.agent && params.task) {
 				const result = await runSingleAgent(
 					ctx.cwd,
+					dispatchDefaults,
+					planModeActive,
 					agents,
 					params.agent,
 					params.task,
@@ -709,8 +725,6 @@ export default function (pi: ExtensionAPI) {
 					signal,
 					onUpdate,
 					makeDetails("single"),
-					planModeActive,
-					parentModelRef,
 				);
 				const isError = isFailedResult(result);
 				if (isError) {

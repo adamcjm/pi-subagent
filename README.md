@@ -17,7 +17,9 @@ The main agent calls `subagent`, a child `pi` process does the work, and only th
 - **Usage tracking** — turns, tokens, cost, and context usage per subagent
 - **Abort support** — Ctrl+C propagates and kills subagent processes
 - **Plan-mode propagation** — when the main session is in plan mode (via [pi-plan-mode](https://github.com/adamcjm/pi-plan-mode)`s persisted session state), child processes start with `--plan`; nested subagents inherit it through `PI_SUBAGENT=1`
-- **Model inheritance** — an agent that does not pin a `model` inherits the parent session's model
+- **Model & thinking inheritance** — an agent that does not pin a `model` inherits the parent session's model and thinking level
+- **Project-trust aware** — project-agent confirmation is skipped when the project is trusted
+- **Agent list in description** — available agents are listed in the tool description so the model can pick the right one
 - **Agent discovery** — user agents from `~/.pi/agent/agents` and project agents from `.pi/agents`
 - **Frontmatter-aware** — agent markdown supports `name`, `description`, `tools`, and `model`
 
@@ -75,4 +77,9 @@ When several agents share a name, project agents override user agents in `both` 
 
 ## Notes
 
-Based on pi's official `subagent` example extension, with additions: plan-mode propagation, parent-model inheritance, project-agent confirmation, and agent-list injection into the tool description.
+Built on pi's official `subagent` example extension (pi 0.85.1). `agents.ts` is kept byte-identical to the official example; `index.ts` keeps the official implementation (dispatch defaults, thinking-level inheritance, YAML frontmatter parsing, project-trust handling) and adds:
+
+- **Plan-mode propagation** — child processes start with `--plan` when the main session is in plan mode, and nested subagents inherit it through `PI_SUBAGENT=1`
+- **Agent list injection** — available agents are listed in the tool description
+
+Agent and workflow examples (scout/planner/reviewer/worker agents, implement prompts) live in pi's repository under `examples/extensions/subagent/`.

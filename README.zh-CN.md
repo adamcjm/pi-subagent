@@ -17,7 +17,9 @@
 - **用量统计** —— 每个子代理的轮数、token、费用和上下文占用
 - **中止支持** —— Ctrl+C 会传播并终止子代理进程
 - **Plan 模式传播** —— 主会话处于 plan mode 时（读取 [pi-plan-mode](https://github.com/adamcjm/pi-plan-mode) 的会话状态），子进程以 `--plan` 启动；嵌套子代理通过 `PI_SUBAGENT=1` 继承
-- **模型继承** —— agent 未固定 `model` 时，继承父会话当前模型
+- **模型与思考级别继承** —— agent 未固定 `model` 时，继承父会话当前模型与 thinking level
+- **项目信任感知** —— 项目已信任时，不再弹出项目级 agent 确认
+- **工具描述列出 agent** —— 可用 agent 列表写入工具描述，便于模型选择
 - **Agent 发现** —— 用户级 `~/.pi/agent/agents` 与项目级 `.pi/agents`
 - **Frontmatter 支持** —— agent markdown 支持 `name`、`description`、`tools`、`model`
 
@@ -75,4 +77,9 @@ model: anthropic/claude-sonnet-4-5   # 可选；省略时继承父会话模型
 
 ## 说明
 
-基于 pi 官方 `subagent` 示例扩展，并增加了：plan 模式传播、父模型继承、项目级 agent 确认、以及把 agent 列表注入工具描述。
+基于 pi 官方 `subagent` 示例扩展（pi 0.85.1）构建：`agents.ts` 与官方保持逐字节一致；`index.ts` 保留官方实现（dispatch 默认值、thinking level 继承、YAML frontmatter 解析、项目信任处理），并增加：
+
+- **plan 模式传播** —— 主会话处于 plan mode 时，子进程以 `--plan` 启动；嵌套子代理通过 `PI_SUBAGENT=1` 继承
+- **agent 列表注入** —— 把可用 agent 列表写入工具描述
+
+官方示例 agent 与 workflow 提示（scout/planner/reviewer/worker、implement 系列）位于 pi 仓库的 `examples/extensions/subagent/`。
