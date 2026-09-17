@@ -249,6 +249,28 @@ async function writePromptToTempFile(agentName: string, prompt: string): Promise
 }
 
 /**
+ * Read the CLI entry (`bin.pi`) declared by the package at `packageDir`.
+ *
+ * Returns `undefined` when the package does not ship a pi CLI — for example the
+ * pi-web host (whose manifest only declares `bin.pi-web`) or a Next.js build
+ * directory such as `.next`. Callers use this to tell a real pi package apart
+ * from a host package that merely happens to contain `process.argv[1]`.
+ */
+function resolvePiBinFromPackageDir(packageDir: string): string | undefined {
+	try {
+		const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf-8")) as {
+			bin?: string | Record<string, string>;
+		};
+		const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.pi;
+		if (!bin) return undefined;
+		const entry = path.resolve(packageDir, bin);
+		return fs.existsSync(entry) ? entry : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * Check whether a script path belongs to the currently loaded pi package.
  *
  * `process.argv[1]` is the pi CLI entry only when pi itself started the
@@ -257,10 +279,18 @@ async function writePromptToTempFile(agentName: string, prompt: string): Promise
  * server, an Electron main file, ...). Reusing such an entry while passing pi
  * CLI flags (`-p`, `--no-session`, ...) makes the child exit with a flag
  * parsing error, so the entry has to be validated before it is reused.
+ *
+ * The package identity check is required: in embedded hosts `getPackageDir()`
+ * can resolve to the host's own package (pi-web) or to a build directory
+ * (`.next`) that contains the host entry script. Only a package that really
+ * declares `bin.pi` may be treated as the pi package.
  */
 function isPiPackageEntry(scriptPath: string): boolean {
 	try {
 		const packageDir = fs.realpathSync(getPackageDir());
+		if (!resolvePiBinFromPackageDir(packageDir)) {
+			return false;
+		}
 		const entryPath = fs.realpathSync(scriptPath);
 		const relative = path.relative(packageDir, entryPath);
 		return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
@@ -272,14 +302,7 @@ function isPiPackageEntry(scriptPath: string): boolean {
 /** Resolve the CLI entry (`bin.pi`) shipped with the currently loaded pi package. */
 function resolvePiCliEntry(): string | undefined {
 	try {
-		const packageDir = getPackageDir();
-		const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf-8")) as {
-			bin?: string | Record<string, string>;
-		};
-		const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.pi;
-		if (!bin) return undefined;
-		const entry = path.resolve(packageDir, bin);
-		return fs.existsSync(entry) ? entry : undefined;
+		return resolvePiBinFromPackageDir(getPackageDir());
 	} catch {
 		return undefined;
 	}
