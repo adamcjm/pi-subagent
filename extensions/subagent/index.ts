@@ -25,6 +25,7 @@ import {
 	type ExtensionContext,
 	getAgentDir,
 	getMarkdownTheme,
+	getPackageDir,
 	withFileMutationQueue,
 } from "@earendil-works/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@earendil-works/pi-tui";
@@ -247,11 +248,55 @@ async function writePromptToTempFile(agentName: string, prompt: string): Promise
 	return { dir: tmpDir, filePath };
 }
 
+/**
+ * Check whether a script path belongs to the currently loaded pi package.
+ *
+ * `process.argv[1]` is the pi CLI entry only when pi itself started the
+ * process. Embedders (pi-web, SDK hosts, tests) run the agent in-process, so
+ * `process.argv[1]` points at the embedder's own entry script (a Next.js
+ * server, an Electron main file, ...). Reusing such an entry while passing pi
+ * CLI flags (`-p`, `--no-session`, ...) makes the child exit with a flag
+ * parsing error, so the entry has to be validated before it is reused.
+ */
+function isPiPackageEntry(scriptPath: string): boolean {
+	try {
+		const packageDir = fs.realpathSync(getPackageDir());
+		const entryPath = fs.realpathSync(scriptPath);
+		const relative = path.relative(packageDir, entryPath);
+		return relative !== "" && !relative.startsWith("..") && !path.isAbsolute(relative);
+	} catch {
+		return false;
+	}
+}
+
+/** Resolve the CLI entry (`bin.pi`) shipped with the currently loaded pi package. */
+function resolvePiCliEntry(): string | undefined {
+	try {
+		const packageDir = getPackageDir();
+		const manifest = JSON.parse(fs.readFileSync(path.join(packageDir, "package.json"), "utf-8")) as {
+			bin?: string | Record<string, string>;
+		};
+		const bin = typeof manifest.bin === "string" ? manifest.bin : manifest.bin?.pi;
+		if (!bin) return undefined;
+		const entry = path.resolve(packageDir, bin);
+		return fs.existsSync(entry) ? entry : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 function getPiInvocation(args: string[]): { command: string; args: string[] } {
 	const currentScript = process.argv[1];
 	const isBunVirtualScript = currentScript?.startsWith("/$bunfs/root/");
-	if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript)) {
+	if (currentScript && !isBunVirtualScript && fs.existsSync(currentScript) && isPiPackageEntry(currentScript)) {
 		return { command: process.execPath, args: [currentScript, ...args] };
+	}
+
+	// The host process is not the pi CLI (embedded by pi-web / SDK): run the
+	// CLI entry of the loaded pi package instead of the embedder's entry script.
+	const piCliEntry = resolvePiCliEntry();
+	if (piCliEntry) {
+		return { command: process.execPath, args: [piCliEntry, ...args] };
 	}
 
 	const execName = path.basename(process.execPath).toLowerCase();
