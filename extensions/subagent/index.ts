@@ -453,10 +453,8 @@ async function runSingleAgent(
 					emitUpdate();
 				}
 
-				if (event.type === "tool_result_end" && event.message) {
-					currentResult.messages.push(event.message as Message);
-					emitUpdate();
-				}
+				// Tool results arrive as message_end with role "toolResult"; pi has no
+				// separate tool result event in JSON mode.
 			};
 
 			proc.stdout.on("data", (data) => {
